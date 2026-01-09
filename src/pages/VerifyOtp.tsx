@@ -16,6 +16,9 @@ import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { useLocation, useNavigate } from "react-router-dom";
 import http from "../api/http";
 
+// ✅ Same background image as Login page
+import bgImage from "../assets/bg-login.jpeg";
+
 type LocationState = { phone?: string };
 
 function onlyDigits(s: string) {
@@ -43,10 +46,8 @@ export default function VerifyOtp() {
     [phone]
   );
 
-  // If user directly opens /verify without state, send them back to login
   useEffect(() => {
-    if (!state.phone) return;
-    // keep
+    // If someone navigates directly here, state.phone may be missing
   }, [state.phone]);
 
   function goBackToLogin() {
@@ -69,9 +70,6 @@ export default function VerifyOtp() {
     try {
       setLoadingVerify(true);
 
-      // Expected backend:
-      // POST /auth/verify-otp  { phone: "+221...", code: "123456" }
-      // Response: { token: "jwt..." } (or { accessToken: "..." })
       const res = await http.post("/auth/verify-otp", {
         phone,
         code: codeDigits,
@@ -114,10 +112,7 @@ export default function VerifyOtp() {
 
     try {
       setLoadingResend(true);
-
-      // Same endpoint as Login page
       await http.post("/auth/request-otp", { phone });
-
       setInfo("Nouveau code envoyé sur WhatsApp.");
     } catch (e: any) {
       const msg =
@@ -130,18 +125,41 @@ export default function VerifyOtp() {
     }
   }
 
-  // If someone comes here without phone, show a helpful UI
   const missingPhone = !phone;
 
   return (
     <Box
-      sx={{ minHeight: "100vh", display: "grid", placeItems: "center", p: 2 }}
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+
+        // ✅ Background image + overlay (same as Login)
+        backgroundImage: `linear-gradient(
+            rgba(0, 0, 0, 0.55),
+            rgba(0, 0, 0, 0.55)
+          ), url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
     >
       <Container maxWidth="sm">
-        <Paper elevation={3} sx={{ p: { xs: 3, sm: 4 } }}>
+        <Paper
+          elevation={6}
+          sx={{
+            p: { xs: 3, sm: 4 },
+
+            // ✅ Same "glass" look
+            backgroundColor: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(6px)",
+            border: "1px solid rgba(255,255,255,0.35)",
+          }}
+        >
           <Stack spacing={2.2}>
             <Stack spacing={0.5}>
-              <Typography variant="h4" color="primary">
+              <Typography variant="h4" color="primary" fontWeight={800}>
                 Vérification OTP
               </Typography>
               <Typography color="text.secondary">
@@ -165,12 +183,11 @@ export default function VerifyOtp() {
             {info && <Alert severity="success">{info}</Alert>}
 
             <Stack spacing={1.5}>
-              {/* Allow showing phone so user can confirm; disable editing to keep flow clean */}
               <TextField
                 label="Numéro"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                disabled={!missingPhone ? true : false}
+                disabled={!missingPhone}
                 helperText={
                   missingPhone
                     ? "Entrez votre numéro au format +221xxxxxxxxx"
@@ -198,7 +215,7 @@ export default function VerifyOtp() {
                 startIcon={<LockOpenIcon />}
                 disabled={loadingVerify || missingPhone}
                 onClick={verifyOtp}
-                sx={{ py: 1.2 }}
+                sx={{ py: 1.2, fontWeight: 700 }}
               >
                 {loadingVerify ? "Vérification..." : "Valider et se connecter"}
               </Button>
