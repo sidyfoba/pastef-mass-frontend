@@ -9,8 +9,11 @@ import {
   Stack,
   TextField,
   Typography,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import SmsIcon from "@mui/icons-material/Sms";
+import LockIcon from "@mui/icons-material/Lock";
 import { useNavigate } from "react-router-dom";
 import http from "../api/http";
 import bgImage from "../assets/bg-login.jpeg";
@@ -29,11 +32,17 @@ function normalizePhone(raw: string) {
   return v;
 }
 
+type LoginMode = "otp" | "password";
+
 export default function Login() {
   const navigate = useNavigate();
 
+  const [mode, setMode] = useState<LoginMode>("otp");
+
   const [phoneInput, setPhoneInput] = useState("");
   const phone = useMemo(() => normalizePhone(phoneInput), [phoneInput]);
+
+  const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +80,55 @@ export default function Login() {
       setLoading(false);
     }
   }
+
+  async function loginWithPassword() {
+    setError(null);
+    setInfo(null);
+
+    if (!isPhoneLikelyValid) {
+      setError(
+        "Numéro invalide. Exemple: +221771234567 ou 771234567 (sera converti)."
+      );
+      return;
+    }
+    if (!password || password.trim().length < 4) {
+      setError("Mot de passe requis (minimum 4 caractères).");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data } = await http.post("/auth/login-password", {
+        phone,
+        password,
+      });
+
+      // TokenResponse(token) => { token: "..." }
+      const token = data?.token;
+      if (!token) {
+        setError("Connexion réussie mais token manquant.");
+        return;
+      }
+
+      localStorage.setItem("token", token);
+      setInfo("Connexion réussie.");
+
+      navigate("/admin", { replace: true });
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        (e?.response?.status === 401
+          ? "Téléphone ou mot de passe incorrect."
+          : null) ||
+        "Impossible de se connecter. Réessayez.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const primaryAction = mode === "otp" ? requestOtp : loginWithPassword;
 
   return (
     <Box
@@ -125,7 +183,9 @@ export default function Login() {
                 color="rgba(255,255,255,0.9)"
                 sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" } }}
               >
-                Connectez-vous avec votre numéro. Un code sera envoyé par SMS.
+                {mode === "otp"
+                  ? "Connectez-vous avec votre numéro. Un code sera envoyé par SMS."
+                  : "Connectez-vous avec votre numéro et votre mot de passe."}
               </Typography>
             </Stack>
           </Box>
@@ -134,6 +194,29 @@ export default function Login() {
           <Box sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
               <Divider />
+
+              {/* Mode switch */}
+              <ToggleButtonGroup
+                value={mode}
+                exclusive
+                onChange={(_, v) => {
+                  if (!v) return;
+                  setMode(v);
+                  setError(null);
+                  setInfo(null);
+                }}
+                fullWidth
+                size="small"
+              >
+                <ToggleButton value="otp">
+                  <SmsIcon fontSize="small" style={{ marginRight: 8 }} />
+                  SMS
+                </ToggleButton>
+                <ToggleButton value="password">
+                  <LockIcon fontSize="small" style={{ marginRight: 8 }} />
+                  Mot de passe
+                </ToggleButton>
+              </ToggleButtonGroup>
 
               {error && <Alert severity="error">{error}</Alert>}
               {info && <Alert severity="success">{info}</Alert>}
@@ -153,18 +236,41 @@ export default function Login() {
                 }
               />
 
+              {mode === "password" && (
+                <TextField
+                  label="Mot de passe"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  fullWidth
+                />
+              )}
+
               <Button
                 variant="contained"
                 color="primary"
                 size="large"
-                startIcon={<SmsIcon />}
+                startIcon={mode === "otp" ? <SmsIcon /> : <LockIcon />}
                 disabled={loading}
-                onClick={requestOtp}
+                onClick={primaryAction}
                 fullWidth
                 sx={{ py: 1.2, fontWeight: 700 }}
               >
-                {loading ? "Envoi en cours..." : "Envoyer le code par SMS"}
+                {loading
+                  ? "Veuillez patienter..."
+                  : mode === "otp"
+                  ? "Envoyer le code par SMS"
+                  : "Se connecter"}
               </Button>
+
+              {/* Optional helper for password mode */}
+              {mode === "password" && (
+                <Typography variant="body2" color="text.secondary">
+                  Si vous n’avez pas encore de mot de passe, connectez-vous via
+                  SMS puis définissez-en un.
+                </Typography>
+              )}
 
               <Typography variant="body2" color="text.secondary">
                 En continuant, vous acceptez que nous utilisions votre numéro
