@@ -210,7 +210,7 @@ export default function Profile() {
           <Box
             sx={{
               position: "relative",
-              height: { xs: 180, sm: 260 },
+              height: { xs: 280, sm: 370 },
               backgroundImage: `url(${bgImage})`,
               backgroundSize: "cover",
               backgroundPosition: "center",

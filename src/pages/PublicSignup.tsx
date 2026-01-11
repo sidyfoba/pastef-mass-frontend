@@ -148,7 +148,7 @@ export default function PublicSignup() {
           <Box
             sx={{
               position: "relative",
-              height: { xs: 180, sm: 260 },
+              height: { xs: 280, sm: 370 },
               backgroundImage: `url(${bgImage})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
@@ -185,7 +185,7 @@ export default function PublicSignup() {
                   lineHeight: 1.15,
                 }}
               >
-                INSCRIPTION PUBLIQUE
+                TAMBALÉ CI SONKO YÉM CI SONKO
               </Typography>
 
               <Typography
@@ -197,7 +197,17 @@ export default function PublicSignup() {
                 fontWeight={800}
                 fontSize={{ xs: "0.95rem", sm: "1.05rem" }}
               >
-                Remplissez le formulaire
+                1 million d’adhérents actifs
+              </Typography>
+              <Typography
+                component={motion.div}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                color="rgba(255,255,255,0.9)"
+                fontSize={{ xs: "0.85rem", sm: "0.95rem" }}
+              >
+                La grande armée civique de PASTEF
               </Typography>
             </Stack>
           </Box>
