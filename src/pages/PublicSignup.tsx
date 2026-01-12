@@ -15,6 +15,7 @@ import {
   Switch,
   TextField,
   Typography,
+  Collapse,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import { useForm } from "react-hook-form";
@@ -33,19 +34,48 @@ const COMMUNES = [
   "Commune de Yeumbeul Sud",
 ];
 
+const FIXED_REGION = "DAKAR" as const;
+const FIXED_DEPARTMENT = "KEUR MASSAR" as const;
+
 const schema = z
   .object({
     commune: z.string().min(2, "Commune obligatoire"),
+
+    // ✅ fixed and enforced
+    region: z.literal(FIXED_REGION),
+    department: z.literal(FIXED_DEPARTMENT),
+
     prenom: z.string().min(2, "Prénom obligatoire"),
     nom: z.string().min(2, "Nom obligatoire"),
     dateNaissance: z.string().min(10, "Date de naissance obligatoire"),
     phone: z.string().min(6, "Téléphone obligatoire"),
     carteIdentite: z.string().min(3, "Carte d’identité obligatoire"),
     dateExpiration: z.string().min(10, "Date d’expiration obligatoire"),
+
     carteElecteur: z.boolean(),
     nonVote: z.boolean(),
     nonInscrit: z.boolean(),
     isMember: z.boolean(),
+
+    // ✅ optional pastef fields (only shown when isMember = true)
+    pastefCardNumber: z
+      .string()
+      .trim()
+      .max(50, "Max 50 caractères")
+      .optional()
+      .or(z.literal("")),
+    pastefSection: z
+      .string()
+      .trim()
+      .max(120, "Max 120 caractères")
+      .optional()
+      .or(z.literal("")),
+    coordinatorPhone: z
+      .string()
+      .trim()
+      .max(20, "Max 20 caractères")
+      .optional()
+      .or(z.literal("")),
   })
   .superRefine((data, ctx) => {
     if (data.nonInscrit && data.nonVote) {
@@ -62,6 +92,25 @@ const schema = z
         path: ["carteElecteur"],
       });
     }
+
+    // ✅ optional rule: if isMember is true, at least 1 pastef field is recommended/required
+    // If you want STRICT required, uncomment the block below.
+    /*
+    if (data.isMember) {
+      const hasOne =
+        (data.pastefCardNumber ?? "").trim().length > 0 ||
+        (data.pastefSection ?? "").trim().length > 0 ||
+        (data.coordinatorPhone ?? "").trim().length > 0;
+
+      if (!hasOne) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Si vous êtes membre, renseignez au moins un champ PASTEF.",
+          path: ["pastefCardNumber"],
+        });
+      }
+    }
+    */
   });
 
 type FormValues = z.infer<typeof schema>;
@@ -93,6 +142,8 @@ export default function PublicSignup() {
       resolver: zodResolver(schema),
       defaultValues: {
         commune: "",
+        region: FIXED_REGION,
+        department: FIXED_DEPARTMENT,
         prenom: "",
         nom: "",
         dateNaissance: "",
@@ -103,11 +154,21 @@ export default function PublicSignup() {
         nonVote: false,
         nonInscrit: false,
         isMember: false,
+        pastefCardNumber: "",
+        pastefSection: "",
+        coordinatorPhone: "",
       },
     });
 
   const nonInscrit = watch("nonInscrit");
   const nonVote = watch("nonVote");
+  const isMember = watch("isMember");
+
+  useEffect(() => {
+    // ✅ enforce fixed fields (in case of reset/hack)
+    setValue("region", FIXED_REGION, { shouldDirty: false });
+    setValue("department", FIXED_DEPARTMENT, { shouldDirty: false });
+  }, [setValue]);
 
   useEffect(() => {
     if (nonInscrit) {
@@ -122,12 +183,46 @@ export default function PublicSignup() {
     }
   }, [nonVote, setValue]);
 
+  useEffect(() => {
+    // If user says not a member, clear PASTEF fields
+    if (!isMember) {
+      setValue("pastefCardNumber", "", { shouldDirty: true });
+      setValue("pastefSection", "", { shouldDirty: true });
+      setValue("coordinatorPhone", "", { shouldDirty: true });
+    }
+  }, [isMember, setValue]);
+
   async function onSubmit(values: FormValues) {
     try {
       setSaving(true);
-      await http.post("/public/profile", values);
+
+      // ✅ safety: force fixed values before sending
+      const payload: FormValues = {
+        ...values,
+        region: FIXED_REGION,
+        department: FIXED_DEPARTMENT,
+      };
+
+      await http.post("/public/profile", payload);
       showSnack("success", "Merci ! Vos informations ont été enregistrées.");
-      reset();
+      reset({
+        commune: "",
+        region: FIXED_REGION,
+        department: FIXED_DEPARTMENT,
+        prenom: "",
+        nom: "",
+        dateNaissance: "",
+        phone: "",
+        carteIdentite: "",
+        dateExpiration: "",
+        carteElecteur: false,
+        nonVote: false,
+        nonInscrit: false,
+        isMember: false,
+        pastefCardNumber: "",
+        pastefSection: "",
+        coordinatorPhone: "",
+      });
     } catch (e: any) {
       const msg =
         e?.response?.data?.message ||
@@ -199,6 +294,7 @@ export default function PublicSignup() {
               >
                 1 million d’adhérents actifs
               </Typography>
+
               <Typography
                 component={motion.div}
                 initial={{ opacity: 0, y: 16 }}
@@ -237,6 +333,22 @@ export default function PublicSignup() {
                   ))}
                 </Select>
               </FormControl>
+
+              {/* ✅ fixed region/department (not editable) */}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField
+                  label="Région"
+                  value={FIXED_REGION}
+                  disabled
+                  fullWidth
+                />
+                <TextField
+                  label="Département"
+                  value={FIXED_DEPARTMENT}
+                  disabled
+                  fullWidth
+                />
+              </Stack>
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField
@@ -316,7 +428,7 @@ export default function PublicSignup() {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={watch("isMember")}
+                        checked={isMember}
                         onChange={(e) =>
                           setValue("isMember", e.target.checked, {
                             shouldDirty: true,
@@ -326,12 +438,41 @@ export default function PublicSignup() {
                         color="secondary"
                       />
                     }
-                    label={
-                      watch("isMember")
-                        ? "Déjà membre : Oui"
-                        : "Déjà membre : Non"
-                    }
+                    label={isMember ? "Déjà membre : Oui" : "Déjà membre : Non"}
                   />
+
+                  {/* ✅ show extra fields only if member */}
+                  <Collapse in={isMember}>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <TextField
+                        label="Numéro carte PASTEF (optionnel)"
+                        {...register("pastefCardNumber")}
+                        error={!!formState.errors.pastefCardNumber}
+                        helperText={
+                          formState.errors.pastefCardNumber?.message as any
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Section PASTEF (optionnel)"
+                        {...register("pastefSection")}
+                        error={!!formState.errors.pastefSection}
+                        helperText={
+                          formState.errors.pastefSection?.message as any
+                        }
+                        fullWidth
+                      />
+                      <TextField
+                        label="Téléphone coordinateur (optionnel)"
+                        {...register("coordinatorPhone")}
+                        error={!!formState.errors.coordinatorPhone}
+                        helperText={
+                          formState.errors.coordinatorPhone?.message as any
+                        }
+                        fullWidth
+                      />
+                    </Stack>
+                  </Collapse>
                 </Stack>
               </Paper>
 
